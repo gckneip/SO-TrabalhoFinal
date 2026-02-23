@@ -3,58 +3,63 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "entrega.h"
 
 int main() {
-  pthread_mutex_t motos[MAX_RESTAURANTES];
-  pthread_mutex_t pedidos[MAX_RESTAURANTES];
-  int entregadores_veteranos[NUM_THREADS / 2];
-  int entregadores_novatos[NUM_THREADS / 2];
+  printf("==== TESTE DEADLOCK + STARVATION ====\n");
+  printf("1 Restaurante | Alta Contencao | Aging ativo\n\n");
 
-  size_t totalEntregas = NUM_THREADS;
-  pthread_t* threads = calloc(totalEntregas, sizeof(pthread_t));
-  EntregaArgs* entregas = calloc(totalEntregas, sizeof(EntregaArgs));
+  pthread_mutex_t motos[NUM_RESTAURANTES];
+  pthread_mutex_t pedidos[NUM_RESTAURANTES];
 
-  if (!threads || !entregas) {
-    fprintf(stderr, "Erro ao alocar memoria para entregas\n");
-    free(threads);
-    free(entregas);
-    return 1;
-  }
+  RestauranteControle controle;
+  controle.novatos_cederam = 0;
+  pthread_mutex_init(&controle.lock, NULL);
 
-  for (int i = 0; i < MAX_RESTAURANTES; i++) {
+  for (int i = 0; i < NUM_RESTAURANTES; i++) {
     pthread_mutex_init(&motos[i], NULL);
     pthread_mutex_init(&pedidos[i], NULL);
   }
 
-  for (int i = 0; i < NUM_THREADS / 2; i++) {
-    entregadores_veteranos[i] = i + 1;
-    entregadores_novatos[i] = i + 1;
-  }
+  pthread_t threads[NUM_THREADS];
+  EntregaArgs entregas[NUM_THREADS];
 
-  // Create NUM_THREADS deliveries alternating novatos/veteranos
   for (int i = 0; i < NUM_THREADS; i++) {
-    int restaurante_idx = i % MAX_RESTAURANTES;
-    entregas[i].pedido = &pedidos[restaurante_idx];
-    entregas[i].moto = &motos[restaurante_idx];
+    int restaurante;
+
+    int faixa = NUM_THREADS / NUM_RESTAURANTES;
+    restaurante = i / faixa;
+    if (restaurante >= NUM_RESTAURANTES) {
+      restaurante = NUM_RESTAURANTES - 1;
+    }
+
+    entregas[i].pedido = &pedidos[restaurante];
+    entregas[i].moto = &motos[restaurante];
+    entregas[i].controle = &controle;
+
     entregas[i].isNovato = (i % 2 == 0);
-    entregas[i].entregador = entregas[i].isNovato
-                                 ? entregadores_novatos[i / 2]
-                                 : entregadores_veteranos[i / 2];
-    entregas[i].restaurante = i % MAX_RESTAURANTES + 1;
+    entregas[i].entregador = i + 1;
+    entregas[i].restaurante = restaurante + 1;
+
     int rc = pthread_create(&threads[i], NULL, realizarEntrega, &entregas[i]);
     if (rc != 0) {
-      fprintf(stderr, "Falha ao criar thread %d (rc=%d)\n", i, rc);
+      fprintf(stderr, "Erro ao criar thread %d\n", i);
     }
   }
 
-  for (size_t t = 0; t < NUM_THREADS; t++) {
-    pthread_join(threads[t], NULL);
+  for (int i = 0; i < NUM_THREADS; i++) {
+    pthread_join(threads[i], NULL);
   }
+  printf("\n==== FIM DO TESTE ====\n");
 
-  free(threads);
-  free(entregas);
+  for (int i = 0; i < NUM_RESTAURANTES; i++) {
+    pthread_mutex_destroy(&motos[i]);
+    pthread_mutex_destroy(&pedidos[i]);
+  }
+  pthread_mutex_destroy(&controle.lock);
+
   return 0;
-};
+}

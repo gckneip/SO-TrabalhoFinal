@@ -1,9 +1,11 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define NUM_THREADS 10
-#define MAX_RESTAURANTES 5
+#define NUM_THREADS 1000
+#define NUM_RESTAURANTES 10
 #define TEMPO_ESPERA_LANCHE 2
-#define TEMPO_ESPERA_MOTO 2
+#define TEMPO_ESPERA_MOTO 4
+#define LIMITE_AGING 3
+#define LIMITE_ESPERA 10
 
-#endif  // CONFIG_H
+#endif
