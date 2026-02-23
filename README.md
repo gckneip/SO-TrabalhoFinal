@@ -4,6 +4,8 @@
 **Professor:** Rafael Burlamaqui Amaral  
 **Universidade Federal de Pelotas**
 
+🔗 **Repositório:** [https://github.com/gckneip/SO-TrabalhoFinal](https://github.com/gckneip/SO-TrabalhoFinal)
+
 ## 📋 Visão Geral do Projeto
 
 Este projeto simula um problema clássico de deadlock em sistemas concorrentes através de um cenário baseado no aplicativo de entregas "Laranjal Foods" em Pelotas.
