@@ -87,6 +87,74 @@ O programa deve narrar o que está acontecendo para que o deadlock seja visível
 (Após isso, nenhuma mensagem sobre o Restaurante 0 aparece mais -> Deadlock confirmado)
 ```
 
+## ✅ Solução Implementada
+
+### 1. Prevenção de Deadlock
+
+A solução implementada utiliza **pthread_mutex_trylock()** para evitar bloqueio indefinido, combinado com um mecanismo de **backoff** (recuo) quando recursos não estão disponíveis.
+
+#### Estratégia para Novatos:
+- Usam `pthread_mutex_trylock()` para tentar pegar a moto
+- Se a moto estiver ocupada, **devolvem o lanche** e desistem da entrega
+- Isso evita que fiquem bloqueados esperando indefinidamente
+
+#### Estratégia para Veteranos:
+- Também usam `pthread_mutex_trylock()` para verificar disponibilidade
+- Quando detectam que um novato tem prioridade (aging), usam trylock no pedido
+- Se o pedido estiver ocupado, **devolvem a moto** e desistem
+
+**Como previne deadlock:**
+- Nenhum entregador fica bloqueado esperando eternamente
+- O uso de `trylock` permite que threads "desistam" e liberem recursos
+- Isso quebra o ciclo de espera circular necessário para deadlock
+
+### 2. Prevenção de Starvation (Inanição)
+
+A solução implementa um mecanismo de **Aging** para garantir que novatos não sejam perpetuamente impedidos de fazer entregas.
+
+#### Como funciona:
+
+1. **Contador de Retornos:**
+   - Cada vez que um novato precisa devolver o lanche, incrementa `novatos_cederam`
+   - Este contador é compartilhado e protegido por mutex
+
+2. **Limite de Aging (`LIMITE_AGING`):**
+   - Quando `novatos_cederam >= LIMITE_AGING` (padrão: 3)
+   - O próximo novato que tentar fazer entrega recebe **prioridade máxima**
+
+3. **Comportamento com Prioridade Ativa:**
+   - O novato prioritário **bloqueia com `pthread_mutex_lock()`** na moto em vez de trylock
+   - Seta flag `novato_aguardando_prioridade[restaurante] = 1`
+   - Veteranos detectam essa flag e passam a usar `trylock` no pedido
+   - Se o pedido estiver ocupado, o veterano **desiste e devolve a moto**
+
+4. **Limite de Espera (`LIMITE_ESPERA`):**
+   - Mesmo com prioridade, o novato tem um limite de 10 tentativas
+   - Isso evita que fique preso indefinidamente caso haja algum problema
+
+#### Parâmetros Configuráveis (config.h):
+
+```c
+#define LIMITE_AGING 3      // Quantas vezes novatos devem ceder antes de ganhar prioridade
+#define LIMITE_ESPERA 10    // Máximo de tentativas para novato prioritário
+```
+
+**Como previne starvation:**
+- Garante que novatos eventualmente conseguem fazer entregas
+- Após 3 desistências seguidas, um novato ganha prioridade absoluta
+- Veteranos cedem o espaço quando detectam a prioridade ativa
+- O contador é resetado após entrega bem-sucedida
+
+### Estrutura de Controle
+
+```c
+typedef struct {
+  int novatos_cederam;                          // Contador de aging
+  int novato_aguardando_prioridade[NUM_RESTAURANTES]; // Flag de prioridade por restaurante
+  pthread_mutex_t lock;                         // Protege acesso aos contadores
+} RestauranteControle;
+```
+
 ## 🚀 Compilação e Execução
 
 ```bash
